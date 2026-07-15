@@ -25,7 +25,8 @@
   --shadow2:   rgba(44,36,24,0.18);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--ink);font-family:'Georgia','Times New Roman',serif;font-size:14.5px;line-height:1.55;min-height:100vh}
+body{background:var(--bg);color:var(--ink);font-family:'Georgia','Times New Roman',serif;font-size:14.5px;line-height:1.55;min-height:100vh;-webkit-tap-highlight-color:transparent}
+input,select,textarea{font-size:16px!important}
 
 #loader-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:1000}
 .loader-ornament{font-size:2.2rem;color:var(--accent2);letter-spacing:.15em}
@@ -46,9 +47,9 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia','Times New Roma
 #load-error{font-size:.85rem;color:var(--red);display:none;text-align:center}
 
 #app{display:none;height:100vh;flex-direction:column}
-#topbar{background:var(--topbar);color:#e8d9c0;padding:.45rem 1.2rem;display:flex;align-items:center;gap:1.2rem;flex-shrink:0;border-bottom:2px solid var(--accent2)}
+#topbar{background:var(--topbar);color:#e8d9c0;padding:.45rem 1.2rem;display:flex;align-items:center;gap:1.2rem;flex-shrink:0;border-bottom:2px solid var(--accent2);position:relative}
 #topbar .brand{font-size:.82rem;letter-spacing:.08em;color:var(--accent3);text-transform:uppercase;white-space:nowrap;padding-right:1.2rem;border-right:1px solid #4a3c28}
-.stats-row{display:flex;gap:1.2rem;flex-wrap:wrap}
+#stats-toggle{display:none}.stats-row{display:flex;gap:1.2rem;flex-wrap:wrap}
 .stat-pill{font-size:.76rem;color:#a08060;display:flex;gap:.3rem;align-items:baseline}
 .stat-pill strong{color:var(--accent3);font-size:.95rem}
 .reload-btn{margin-left:auto;background:transparent;border:1px solid #4a3c28;color:#a08060;padding:.2rem .7rem;font-family:Georgia,serif;font-size:.75rem;cursor:pointer;border-radius:2px;transition:all .15s}
@@ -391,13 +392,96 @@ select{background:#fff;color:var(--ink);border:1px solid var(--bg4);padding:.28r
 
 #tax-canvas-wrap{overflow-y:auto;padding-bottom:1rem}
 
+/* ── Mobile-first overrides ─────────────────────────────── */
 @media(max-width:680px){
-  .quality-grid{grid-template-columns:1fr}
+
+  /* Fix iOS 100vh / Safari address-bar quirk */
+  #app{height:100dvh}
+
+  /* Topbar: single row, brand + toggle only */
+  #topbar{padding:.4rem .75rem;gap:.6rem;flex-wrap:nowrap}
+  #topbar .brand{font-size:.72rem;letter-spacing:.04em;border-right:none;padding-right:0}
+  #stats-toggle{display:flex;align-items:center;justify-content:center;
+    margin-left:auto;background:transparent;border:1px solid #4a3c28;
+    color:var(--accent3);font-size:.9rem;width:28px;height:28px;
+    border-radius:3px;cursor:pointer;flex-shrink:0}
+  /* Stats row hidden by default on mobile, shown when toggled */
+  .stats-row{display:none;position:absolute;top:100%;left:0;right:0;
+    background:var(--topbar);padding:.5rem .75rem .6rem;
+    border-bottom:2px solid var(--accent2);gap:.6rem 1rem;
+    flex-wrap:wrap;z-index:100}
+  .stats-row.open{display:flex}
+
+  /* Nav: compact icon+label tabs, no letter-spacing */
+  #nav{-webkit-overflow-scrolling:touch}
+  .nav-tab{padding:.45rem .65rem;font-size:.68rem;letter-spacing:0;
+    display:flex;flex-direction:column;align-items:center;gap:1px}
+  .tab-icon{font-size:.95rem;line-height:1}
+  .tab-lbl{font-size:.58rem;line-height:1}
+
+  /* Panel padding */
+  .panel{padding:.75rem .75rem}
+
+  /* Overview grid → single column */
+  .overview-grid{grid-template-columns:1fr}
+  .overview-grid .chart-card[style*="span 2"]{grid-column:span 1!important}
+  .kpi{min-width:calc(50% - .4rem)}
+  .kpi-val{font-size:1.3rem}
+
+  /* Bar chart labels narrower */
+  .bar-label{flex:0 0 90px;font-size:.72rem}
+  .bar-val{flex:0 0 32px;font-size:.7rem}
+
+  /* Browse: sidebar becomes a collapsible top drawer */
+  #panel-browse{overflow:auto}
+  #browse-inner{flex-direction:column;height:auto;min-height:100%}
+  #browse-sidebar{flex:unset;max-height:none;height:auto;
+    border-right:none;border-bottom:2px solid var(--bg4);
+    overflow:visible}
+  #section-tree{max-height:180px;overflow-y:auto;
+    border:1px solid var(--bg4);border-radius:2px;background:#fff;
+    margin-top:.3rem}
+  #browse-main{padding:.75rem}
+
+  /* Geo: stack vertically */
   #geo-layout{flex-direction:column}
-  #browse-inner{flex-direction:column}
-  #browse-sidebar{flex:unset;max-height:200px;border-right:none;border-bottom:2px solid var(--bg4)}
-  .bar-label{flex:0 0 110px}
+  #geo-detail{flex:unset}
+
+  /* Exhibitor table: hide Share column on mobile */
+  .ex-table th:nth-child(3),
+  .ex-table td:nth-child(3){display:none}
+  #exhibitor-filter{max-width:100%}
+
+  /* Quality grid → single column */
+  .quality-grid{grid-template-columns:1fr}
+
+  /* Entry length controls: wrap sort toggles below field toggles */
+  #len-controls{flex-direction:column;align-items:flex-start;gap:.6rem}
+  #len-sort-toggles{margin-left:0;flex-wrap:wrap}
+
+  /* Taxonomy: tighter min column */
   .ftree-sections-row{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+  #tax-search{width:100%}
+  #tax-controls{gap:.4rem}
+
+  /* Modal: full-screen on mobile */
+  #modal-overlay{padding:.4rem}
+  #modal-box{max-height:96vh;border-radius:3px}
+
+  /* QR widget: hide on mobile — it's for desktop scanning */
+  #qr-widget{display:none}
+
+  /* Pagination: larger tap targets */
+  .page-btn{padding:.35rem .65rem;font-size:.82rem}
+
+  /* Chips wrap naturally */
+  .entry-meta{gap:.3rem}
+  .chip{font-size:.67rem;padding:.08rem .35rem}
+}
+
+/* Slightly larger phones / small tablets: keep sidebar visible */
+@media(min-width:480px) and (max-width:680px){
+  #section-tree{max-height:220px}
 }
 
 /* QR corner widget */
@@ -420,7 +504,8 @@ select{background:#fff;color:var(--ink);border:1px solid var(--bg4);padding:.28r
 <div id="app">
   <div id="topbar">
     <div class="brand">1876 Catalogue Explorer</div>
-    <div class="stats-row">
+    <button id="stats-toggle" onclick="document.getElementById('stats-row').classList.toggle('open')" aria-label="Show stats">⊞</button>
+    <div class="stats-row" id="stats-row">
       <div class="stat-pill"><strong id="s-total">—</strong> entries</div>
       <div class="stat-pill"><strong id="s-pages">—</strong> pages</div>
       <div class="stat-pill"><strong id="s-sections">—</strong> sections</div>
@@ -430,15 +515,15 @@ select{background:#fff;color:var(--ink);border:1px solid var(--bg4);padding:.28r
     </div>
   </div>
   <nav id="nav">
-    <button class="nav-tab active" data-tab="overview">§ Overview</button>
-    <button class="nav-tab" data-tab="taxonomy">§ Taxonomy</button>
-    <button class="nav-tab" data-tab="browse">§ Browse</button>
-    <button class="nav-tab" data-tab="geo">§ Geography</button>
-    <button class="nav-tab" data-tab="exhibitors">§ Exhibitors</button>
-    <button class="nav-tab" data-tab="quality">§ Data Quality</button>
-    <button class="nav-tab" data-tab="lengths">§ Entry Length</button>
-    <button class="nav-tab" data-tab="repeats">§ Repeated Text</button>
-    <button class="nav-tab" data-tab="search">⌕ Search</button>
+    <button class="nav-tab active" data-tab="overview"><span class="tab-icon">◈</span><span class="tab-lbl">Overview</span></button>
+    <button class="nav-tab" data-tab="taxonomy"><span class="tab-icon">🌳</span><span class="tab-lbl">Taxonomy</span></button>
+    <button class="nav-tab" data-tab="browse"><span class="tab-icon">☰</span><span class="tab-lbl">Browse</span></button>
+    <button class="nav-tab" data-tab="geo"><span class="tab-icon">📍</span><span class="tab-lbl">Geography</span></button>
+    <button class="nav-tab" data-tab="exhibitors"><span class="tab-icon">⚙</span><span class="tab-lbl">Exhibitors</span></button>
+    <button class="nav-tab" data-tab="quality"><span class="tab-icon">⚑</span><span class="tab-lbl">Quality</span></button>
+    <button class="nav-tab" data-tab="lengths"><span class="tab-icon">≡</span><span class="tab-lbl">Length</span></button>
+    <button class="nav-tab" data-tab="repeats"><span class="tab-icon">⟳</span><span class="tab-lbl">Repeats</span></button>
+    <button class="nav-tab" data-tab="search"><span class="tab-icon">⌕</span><span class="tab-lbl">Search</span></button>
   </nav>
   <div id="content">
 
@@ -1837,6 +1922,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal({target:d
 // ════════════════════════════════════════════════════════════
 // NAV
 // ════════════════════════════════════════════════════════════
+// Close mobile stats dropdown when tapping outside it
+document.addEventListener('click', e => {
+  const row = document.getElementById('stats-row');
+  const toggle = document.getElementById('stats-toggle');
+  if(row && toggle && !row.contains(e.target) && !toggle.contains(e.target)){
+    row.classList.remove('open');
+  }
+});
+
 document.querySelectorAll('.nav-tab').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
