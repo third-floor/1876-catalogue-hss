@@ -819,7 +819,7 @@ function processData(raw){
     mfr:sv(r['manufacturer']),
     desc:sv(r['description']),
     attr:sv(r['attribution_clean']||r['attribution']),
-    geo:sv(r['geo_origin']),
+    geo:sv(r['geo_origin']).split(';').map(g=>g.trim()).filter(Boolean),
     review:sv(r['needs_review']).toLowerCase()==='true',
     rnotes:sv(r['review_notes']),
     raw:sv(r['raw_block'])
@@ -848,7 +848,14 @@ function resetApp(){
 function normKey(s){return s.toLowerCase().replace(/[_*`\'"'"\.,;:\-\u2013\u2014\(\)\/\\]/g,' ').replace(/\s+/g,' ').trim()}
 function buildNorm(){
   NORM.sections=buildIdx(r=>r.section);
-  NORM.geos=buildIdx(r=>r.geo);
+  NORM.geos=(()=>{
+    const m={};
+    DATA.forEach(r=>{
+      (r.geo.length?r.geo:[''])
+        .forEach(g=>{if(g)m[g]=(m[g]||0)+1});
+    });
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  })();
   NORM.mfr=buildGrouped(r=>r.mfr);
   NORM.attr=buildGrouped(r=>r.attr);
 }
@@ -897,7 +904,7 @@ function updateStatBar(){
   document.getElementById('s-pages').textContent=commas(new Set(DATA.map(r=>r.page).filter(Boolean)).size);
   document.getElementById('s-sections').textContent=new Set(DATA.map(r=>r.section).filter(Boolean)).size;
   document.getElementById('s-mfr').textContent=commas(NORM.mfr.length);
-  document.getElementById('s-geo').textContent=new Set(DATA.map(r=>r.geo).filter(Boolean)).size;
+  document.getElementById('s-geo').textContent=new Set(DATA.flatMap(r=>r.geo)).size;
   document.getElementById('s-review').textContent=commas(DATA.filter(r=>r.review).length);
 }
 
@@ -1387,11 +1394,11 @@ function renderEntries(){
   let rows;
 
   if(query&&!section){
-    rows=DATA.filter(r=>[r.name,r.subdesc,r.desc,r.mfr,r.attr,r.section,r.sub,...getSub3s(r)].some(f=>f&&f.toLowerCase().includes(ql)));
+    rows=DATA.filter(r=>[r.name,r.subdesc,r.desc,r.mfr,r.attr,r.section,r.sub,...getSub3s(r),...r.geo].some(f=>f&&f.toLowerCase().includes(ql)));
   }else if(section){
     rows=DATA.filter(r=>r.section===section);
     if(subsection)rows=rows.filter(r=>r.sub===subsection);
-    if(query)rows=rows.filter(r=>[r.name,r.subdesc,r.desc,r.mfr,r.attr,r.sub,...getSub3s(r)].some(f=>f&&f.toLowerCase().includes(ql)));
+    if(query)rows=rows.filter(r=>[r.name,r.subdesc,r.desc,r.mfr,r.attr,r.sub,...getSub3s(r),...r.geo].some(f=>f&&f.toLowerCase().includes(ql)));
   }else{
     document.getElementById('browse-ctx').textContent='Select a section or search above';
     document.getElementById('browse-count').textContent='';
@@ -1424,7 +1431,7 @@ function entryCard(r,q){
   const chips=[];
   if(r.mfr)chips.push(`<span class="chip mfr">${esc(trunc(r.mfr,45))}</span>`);
   if(r.attr)chips.push(`<span class="chip attr">${esc(trunc(r.attr,45))}</span>`);
-  if(r.geo)chips.push(`<span class="chip geo">📍 ${esc(r.geo)}</span>`);
+  r.geo.forEach(g=>chips.push(`<span class="chip geo">📍 ${esc(g)}</span>`));
   const pc=pageChip(r); if(pc)chips.push(pc);
   if(r.review)chips.push(`<span class="chip flag">⚑ review</span>`);
   if(q&&!state.browse.section)chips.push(`<span class="chip sec-chip">${esc(secShort(r.section)||r.section)}</span>`);
@@ -1467,7 +1474,7 @@ function renderGeoPanel(){
   ).join('');
 }
 function selectGeo(city){
-  const rows=DATA.filter(r=>r.geo===city);
+  const rows=DATA.filter(r=>r.geo.includes(city));
   const bySec={};rows.forEach(r=>{const k=secShort(r.section)||r.section;bySec[k]=(bySec[k]||0)+1});
   document.getElementById('geo-detail').querySelector('h4').textContent=`📍 ${city} — ${rows.length} entries`;
   document.getElementById('geo-sec-list').innerHTML=Object.entries(bySec).sort((a,b)=>b[1]-a[1]).map(([s,c])=>
@@ -1553,7 +1560,7 @@ function toggleExEntries(i, canon, field, rowId){
         <span>${esc(sec)}</span>
         ${r.sub?`<span>› ${esc(r.sub)}</span>`:''}
         ${url?`<a class="chip page-link" style="font-size:.68rem" href="${esc(url)}" target="_blank" onclick="event.stopPropagation()">📖 p.${r.page}</a>`:''}
-        ${r.geo?`<span>📍 ${esc(r.geo)}</span>`:''}
+        ${r.geo.length?r.geo.map(g=>`<span>📍 ${esc(g)}</span>`).join(''):''}
       </div>
       ${sub3chips?`<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap">${sub3chips}</div>`:''}
       ${r.subdesc?`<div style="font-size:.71rem;color:var(--ink3);font-style:italic;margin-top:.1rem">${esc(trunc(r.subdesc,90))}</div>`:''}
@@ -1823,7 +1830,10 @@ function doSearch(){
   const searchSub3=document.getElementById('f-sub3').checked;
   const ql=q.toLowerCase();
   const results=DATA.filter(r=>{
-    if(fields.some(f=>r[f]&&r[f].toLowerCase().includes(ql)))return true;
+    if(fields.some(f=>{
+      if(f==='geo') return r.geo.some(g=>g.toLowerCase().includes(ql));
+      return r[f]&&r[f].toLowerCase().includes(ql);
+    }))return true;
     if(searchSub3&&getSub3s(r).some(s3=>s3.toLowerCase().includes(ql)))return true;
     return false;
   });
@@ -1842,7 +1852,7 @@ function doSearch(){
     const metaChips=[
       r.mfr?`<span class="chip mfr">${esc(trunc(r.mfr,50))}</span>`:'',
       r.attr?`<span class="chip attr">${esc(trunc(r.attr,50))}</span>`:'',
-      r.geo?`<span class="chip geo">📍 ${esc(r.geo)}</span>`:'',
+      r.geo.map(g=>`<span class="chip geo">📍 ${esc(g)}</span>`),
       url?`<a class="chip page-link" href="${esc(url)}" target="_blank">📖 p.${r.page}</a>`:'',
       r.review?`<span class="chip flag">⚑ review</span>`:''
     ].filter(Boolean).join('');
@@ -1900,7 +1910,7 @@ function openModal(idx){
     <div style="display:flex;gap:1rem;flex-wrap:wrap">
       ${r.mfr?`<div class="modal-section" style="flex:1;min-width:160px"><div class="modal-label">Manufacturer / Lender</div><div class="modal-value">${esc(r.mfr)}</div></div>`:''}
       ${r.attr?`<div class="modal-section" style="flex:1;min-width:160px"><div class="modal-label">Attribution / Designer</div><div class="modal-value">${esc(r.attr)}</div></div>`:''}
-      ${r.geo?`<div class="modal-section" style="flex:0 0 auto"><div class="modal-label">Geographic origin</div><div class="modal-value">📍 ${esc(r.geo)}</div></div>`:''}
+      ${r.geo.length?`<div class="modal-section" style="flex:0 0 auto"><div class="modal-label">Geographic origin</div><div class="modal-value">${r.geo.map(g=>`📍 ${esc(g)}`).join(' · ')}</div></div>`:''}
     </div>
     <div class="modal-chips">
       ${r.review?`<span class="chip flag">⚑ flagged for review</span>`:''}
