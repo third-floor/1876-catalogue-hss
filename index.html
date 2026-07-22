@@ -596,10 +596,15 @@ select{background:#fff;color:var(--ink);border:1px solid var(--bg4);padding:.28r
 
     <div class="panel" id="panel-geo">
       <div class="panel-title">Geographic Origins</div>
-      <p style="font-size:.8rem;color:var(--ink3);margin-bottom:.8rem">~14% of entries carry a geo_origin field. Click a city to see its section breakdown.</p>
+      <p style="font-size:.8rem;color:var(--ink3);margin-bottom:.6rem">~14% of entries carry a geo_origin field. Search for a location below, or click a location to see its section breakdown and the entries associated with it.</p>
+      <div style="margin-bottom:.9rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+        <input id="geo-search" placeholder="Search locations…" oninput="onGeoSearch()" autocomplete="off" spellcheck="false"
+          style="flex:1;min-width:200px;max-width:400px;background:#fff;border:1.5px solid var(--bg4);border-bottom:2px solid var(--accent2);color:var(--ink);padding:.38rem .65rem;font-size:.85rem;font-family:Georgia,serif;border-radius:2px;outline:none">
+        <span id="geo-search-count" style="font-size:.76rem;color:var(--ink3)"></span>
+      </div>
       <div id="geo-layout">
         <div id="geo-bars"><div id="chart-geo-full"></div></div>
-        <div id="geo-detail"><h4>← Click a city</h4><div id="geo-sec-list"></div></div>
+        <div id="geo-detail"><h4>← Click a location</h4><div id="geo-sec-list"></div><div id="geo-entry-list"></div></div>
       </div>
     </div>
 
@@ -719,7 +724,8 @@ const state={
   quality:{ section:'', page:0 },
   search:{ query:'', page:0 },
   exhibitor:{ type:'mfr' },
-  taxView:'tree'
+  taxView:'tree',
+  geo:{ query:'', selected:null }
 };
 
 // ════════════════════════════════════════════════════════════
@@ -1463,22 +1469,83 @@ function toggleResultDetail(id,btn){
 
 // ════════════════════════════════════════════════════════════
 // GEOGRAPHY
+// Includes a search box that filters the ranked location list by
+// term (matches anywhere in the location name), and a detail panel
+// that, on click, shows both the per-section breakdown AND the
+// full list of entries associated with that location.
 // ════════════════════════════════════════════════════════════
 function renderGeoPanel(){
-  const geos=NORM.geos.filter(([g])=>g);const mx=geos[0]?.[1]||1;
-  document.getElementById('chart-geo-full').innerHTML=geos.map(([city,c])=>
-    `<div class="bar-row" style="cursor:pointer" onclick="selectGeo('${esc(city)}')">
-      <div class="bar-label" style="flex:0 0 130px" title="${esc(city)}">${esc(trunc(city,18))}</div>
-      <div class="bar-track"><div class="bar-fill geo" style="width:${Math.max(2,Math.round(c/mx*100))}%"></div></div>
-      <div class="bar-val">${c}</div></div>`
-  ).join('');
+  const all=NORM.geos.filter(([g])=>g);
+  const q=(state.geo.query||'').toLowerCase().trim();
+  const geos = q ? all.filter(([city])=>city.toLowerCase().includes(q)) : all;
+  // Keep bar widths scaled against the overall max so relative
+  // magnitudes stay meaningful even while filtering.
+  const mx = all[0]?.[1] || 1;
+
+  const countEl=document.getElementById('geo-search-count');
+  if(countEl){
+    countEl.textContent = q
+      ? `${geos.length} of ${all.length} locations match "${state.geo.query.trim()}"`
+      : `${all.length} locations, ranked by mentions`;
+  }
+
+  document.getElementById('chart-geo-full').innerHTML = geos.length
+    ? geos.map(([city,c])=>
+        `<div class="bar-row" style="cursor:pointer" onclick="selectGeo('${esc(city)}')">
+          <div class="bar-label" style="flex:0 0 130px" title="${esc(city)}">${q?hlText(trunc(city,18),state.geo.query):esc(trunc(city,18))}</div>
+          <div class="bar-track"><div class="bar-fill geo" style="width:${Math.max(2,Math.round(c/mx*100))}%"></div></div>
+          <div class="bar-val">${c}</div></div>`
+      ).join('')
+    : `<div style="font-size:.8rem;color:var(--ink3);padding:.6rem 0">No locations match "${esc(state.geo.query.trim())}".</div>`;
+
+  // If the currently selected location got filtered out, clear the detail panel
+  if(state.geo.selected && q && !geos.some(([city])=>city===state.geo.selected)){
+    document.getElementById('geo-detail').querySelector('h4').textContent='← Click a location';
+    document.getElementById('geo-sec-list').innerHTML='';
+    document.getElementById('geo-entry-list').innerHTML='';
+  }
 }
+
+let geoSearchTimer=null;
+function onGeoSearch(){
+  clearTimeout(geoSearchTimer);
+  geoSearchTimer=setTimeout(()=>{
+    state.geo.query=document.getElementById('geo-search').value;
+    renderGeoPanel();
+  },150);
+}
+
 function selectGeo(city){
+  state.geo.selected=city;
   const rows=DATA.filter(r=>r.geo.includes(city));
   const bySec={};rows.forEach(r=>{const k=secShort(r.section)||r.section;bySec[k]=(bySec[k]||0)+1});
-  document.getElementById('geo-detail').querySelector('h4').textContent=`📍 ${city} — ${rows.length} entries`;
+  document.getElementById('geo-detail').querySelector('h4').textContent=`📍 ${city} — ${commas(rows.length)} entries`;
   document.getElementById('geo-sec-list').innerHTML=Object.entries(bySec).sort((a,b)=>b[1]-a[1]).map(([s,c])=>
     `<div class="geo-sec-row"><span>${esc(s)}</span><span class="gc">${c}</span></div>`).join('');
+
+  document.getElementById('geo-entry-list').innerHTML=`
+    <div style="font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:.8rem 0 .4rem;border-top:1px solid var(--bg4);padding-top:.6rem">
+      Entries from ${esc(city)}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.4rem;max-height:420px;overflow-y:auto">
+      ${rows.map(r=>{
+        const pc=pageChip(r);
+        const sub3chips=getSub3s(r).map(s3=>`<span class="chip sub3" style="font-size:.65rem">${esc(trunc(s3,30))}</span>`).join('');
+        return `<div class="ex-entry-card" onclick="openModal(${r._i})">
+          <div class="en">${esc(r.num?`[${r.num}] `:'')}${esc(r.name||'(untitled)')}</div>
+          <div class="em">
+            <span>${esc(secShort(r.section)||r.section)}</span>
+            ${r.sub?`<span>› ${esc(r.sub)}</span>`:''}
+            ${pc}
+            ${r.mfr?`<span>${esc(trunc(r.mfr,30))}</span>`:''}
+            ${r.review?`<span style="color:var(--red)">⚑ review</span>`:''}
+          </div>
+          ${sub3chips?`<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap">${sub3chips}</div>`:''}
+          ${r.subdesc?`<div style="font-size:.71rem;color:var(--ink3);font-style:italic;margin-top:.1rem">${esc(trunc(r.subdesc,90))}</div>`:''}
+        </div>`;
+      }).join('') || '<div style="color:var(--ink3);font-size:.8rem">No entries found.</div>'}
+    </div>
+  `;
 }
 
 // ════════════════════════════════════════════════════════════
