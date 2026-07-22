@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heliotypes × 1876 Catalogue — Cross-Reference Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:        #f2ede6;
+  --bg2:       #e8e1d6;
+  --bg3:       #ddd5c8;
+  --bg4:       #cfc5b5;
+  --ink:       #2c2418;
+  --ink2:      #5a4e3c;
+  --ink3:      #8a7a65;
+  --accent:    #6b4226;
+  --accent2:   #9b6030;
+  --accent3:   #c8973a;
+  --teal:      #2e6b65;
+  --teal-lt:   #4a9990;
+  --red:       #8b3020;
+  --topbar:    #2c2418;
+  --shadow:    rgba(44,36,24,0.10);
+  --shadow2:   rgba(44,36,24,0.18);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:'Georgia','Times New Roman',serif;font-size:14.5px;line-height:1.55;min-height:100vh;-webkit-tap-highlight-color:transparent}
+input,select,textarea{font-size:16px!important}
+
+#loader-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:1000}
+.loader-ornament{font-size:2.2rem;color:var(--accent2);letter-spacing:.15em}
+.loader-title{font-size:1.4rem;font-weight:normal;color:var(--ink);text-align:center;letter-spacing:.03em;border-top:2px solid var(--accent2);border-bottom:2px solid var(--accent2);padding:.5rem 2rem}
+.loader-sub{font-size:.9rem;color:var(--ink3);font-style:italic;text-align:center}
+#load-progress{font-size:.9rem;color:var(--teal);text-align:center;min-height:1.4em}
+#load-error{font-size:.85rem;color:var(--red);text-align:center;display:none;max-width:460px}
+
+#app{display:none;height:100vh;flex-direction:column}
+#topbar{background:var(--topbar);color:#e8d9c0;padding:.45rem 1.2rem;display:flex;align-items:center;gap:1.2rem;flex-shrink:0;border-bottom:2px solid var(--accent2);position:relative}
+#topbar .brand{font-size:.8rem;letter-spacing:.06em;color:var(--accent3);text-transform:uppercase;white-space:nowrap;padding-right:1.2rem;border-right:1px solid #4a3c28}
+#stats-toggle{display:none}
+.stats-row{display:flex;gap:1.2rem;flex-wrap:wrap}
+.stat-pill{font-size:.76rem;color:#a08060;display:flex;gap:.3rem;align-items:baseline}
+.stat-pill strong{color:var(--accent3);font-size:.95rem}
+
+#nav{background:var(--bg2);border-bottom:2px solid var(--bg4);display:flex;flex-shrink:0;overflow-x:auto}
+.nav-tab{padding:.55rem 1.1rem;font-size:.8rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border:none;background:transparent;color:var(--ink3);border-bottom:3px solid transparent;transition:color .15s,border-color .15s;font-family:Georgia,serif;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:1px}
+.nav-tab:hover{color:var(--ink2)}
+.nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:bold}
+.tab-icon{font-size:.95rem;line-height:1}
+
+#content{flex:1;overflow:hidden;display:flex}
+.panel{display:none;width:100%;overflow-y:auto;padding:1.2rem 1.4rem}
+.panel.active{display:block}
+.panel-title{font-size:.95rem;letter-spacing:.05em;color:var(--accent);text-transform:uppercase;margin-bottom:1rem;padding-bottom:.35rem;border-bottom:2px solid var(--bg4);display:flex;align-items:center;gap:.6rem}
+.panel-sub{font-size:.8rem;color:var(--ink3);margin:-.6rem 0 .9rem}
+
+.kpi-row{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1rem}
+.kpi{background:#fff;border:1px solid var(--bg4);border-radius:3px;padding:.7rem 1rem;flex:1;min-width:130px;box-shadow:0 1px 3px var(--shadow);border-left:3px solid var(--accent2)}
+.kpi.full{border-left-color:var(--teal)}
+.kpi.partial{border-left-color:var(--accent3)}
+.kpi.none{border-left-color:var(--red)}
+.kpi-val{font-size:1.55rem;color:var(--accent);font-variant-numeric:tabular-nums}
+.kpi-lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-top:.1rem}
+
+.overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem}
+.chart-card{background:#fff;border:1px solid var(--bg4);border-radius:3px;padding:1rem 1.1rem;box-shadow:0 1px 3px var(--shadow)}
+.chart-card h3{font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);margin-bottom:.8rem;padding-bottom:.35rem;border-bottom:1px solid var(--bg4)}
+
+.bar-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;font-size:.78rem;cursor:default}
+.bar-row.clickable{cursor:pointer}
+.bar-label{flex:0 0 150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2);text-align:right}
+.bar-track{flex:1;background:var(--bg3);height:13px;border-radius:2px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;background:var(--accent2);min-width:2px}
+.bar-fill.full{background:var(--teal)}
+.bar-fill.partial{background:var(--accent3)}
+.bar-fill.none{background:var(--red)}
+.bar-fill.room{background:var(--accent)}
+.bar-val{flex:0 0 34px;color:var(--ink3);text-align:right;font-size:.75rem}
+
+/* Page coverage strip */
+#page-strip-wrap{position:relative;height:34px;margin-top:.3rem}
+#page-strip-track{position:absolute;inset:0;background:var(--bg3);border-radius:2px}
+.page-tick{position:absolute;top:4px;width:3px;height:26px;background:var(--teal);border-radius:1px;cursor:pointer;transition:transform .1s}
+.page-tick:hover{transform:scaleY(1.15);background:var(--accent2)}
+.page-tick.partial{background:var(--accent3)}
+#page-strip-labels{display:flex;justify-content:space-between;font-size:.68rem;color:var(--ink3);margin-top:.3rem}
+
+/* Chips + status badges */
+.chip{font-size:.7rem;padding:.1rem .4rem;border-radius:10px;border:1px solid;display:inline-block}
+.chip.catno{border-color:#b87040;color:var(--accent);background:#fdf0e0}
+.chip.room{border-color:#7aab88;color:#2e6b45;background:#eaf6ec}
+.chip.sec-chip{border-color:var(--accent2);color:var(--accent2);background:#fdf5ec}
+.chip.sub{border-color:#7a9eb0;color:#2c5a70;background:#e8f2f7;font-style:italic}
+.chip.page-link{border-color:var(--teal-lt);color:var(--teal);background:#e4f4f2;text-decoration:none;cursor:pointer}
+.chip.page-link:hover{background:#c8ebe8}
+.chip.co-link{border-color:var(--teal-lt);color:var(--teal);background:#e4f4f2;text-decoration:none;cursor:pointer;font-size:.72rem}
+.chip.co-link:hover{background:#c8ebe8}
+
+.match-badge{font-size:.66rem;letter-spacing:.04em;text-transform:uppercase;padding:.15rem .55rem;border-radius:10px;border:1px solid;white-space:nowrap;flex-shrink:0}
+.match-badge.full{color:var(--teal);border-color:var(--teal-lt);background:#e4f4f2}
+.match-badge.partial{color:#8a6414;border-color:var(--accent3);background:#fdf3d9}
+.match-badge.none{color:var(--red);border-color:#c98d80;background:#fdecea}
+
+/* Gallery */
+#gallery-controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:.9rem}
+#gallery-search{flex:1;min-width:200px;max-width:380px;background:#fff;border:1.5px solid var(--bg4);border-bottom:2px solid var(--accent2);color:var(--ink);padding:.38rem .65rem;font-size:.85rem;font-family:Georgia,serif;border-radius:2px;outline:none}
+.status-filter{display:flex;gap:.3rem;flex-wrap:wrap}
+.sf-btn{padding:.3rem .7rem;background:var(--bg2);border:1px solid var(--bg4);color:var(--ink3);font-family:Georgia,serif;font-size:.74rem;cursor:pointer;border-radius:2px;transition:all .12s}
+.sf-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sf-btn.active.full{background:var(--teal);border-color:var(--teal)}
+.sf-btn.active.partial{background:var(--accent3);border-color:var(--accent3)}
+.sf-btn.active.none{background:var(--red);border-color:var(--red)}
+#gallery-count{font-size:.76rem;color:var(--ink3);margin-bottom:.6rem}
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.8rem}
+.helio-card{background:#fff;border:1px solid var(--bg4);border-radius:3px;padding:.8rem .9rem;box-shadow:0 1px 2px var(--shadow);transition:border-color .12s,box-shadow .12s;cursor:pointer;display:flex;flex-direction:column;gap:.45rem}
+.helio-card:hover{border-color:var(--accent2);box-shadow:0 3px 8px var(--shadow2)}
+.helio-top{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem}
+.helio-sme{font-size:.68rem;color:var(--ink3);white-space:nowrap}
+.helio-name{font-size:.9rem;color:var(--ink);font-weight:bold;line-height:1.3}
+.helio-meta{display:flex;gap:.35rem;flex-wrap:wrap}
+.helio-desc-snip{font-size:.76rem;color:var(--ink2);font-style:italic;line-height:1.45;max-height:2.9em;overflow:hidden}
+.helio-links{display:flex;gap:.4rem;flex-wrap:wrap;border-top:1px solid var(--bg4);padding-top:.45rem;margin-top:.1rem}
+
+.pagination{display:flex;gap:.3rem;margin-top:1rem;align-items:center;flex-wrap:wrap}
+.page-btn{background:#fff;border:1px solid var(--bg4);color:var(--ink3);padding:.25rem .55rem;font-size:.78rem;cursor:pointer;font-family:Georgia,serif;border-radius:2px;transition:all .12s}
+.page-btn:hover{color:var(--accent);border-color:var(--accent2)}
+.page-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.page-info{font-size:.76rem;color:var(--ink3);margin-right:.3rem}
+
+/* Sections & Rooms */
+.xr-tabs{display:flex;gap:.4rem;margin-bottom:.8rem}
+.xr-tab{padding:.3rem .9rem;border:1.5px solid var(--bg4);background:#fff;color:var(--ink2);cursor:pointer;font-family:Georgia,serif;font-size:.8rem;border-radius:2px;transition:all .12s}
+.xr-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+#xr-search{width:100%;max-width:380px;background:#fff;border:1.5px solid var(--bg4);border-bottom:2px solid var(--accent2);color:var(--ink);padding:.38rem .65rem;font-size:.85rem;font-family:Georgia,serif;border-radius:2px;outline:none;margin-bottom:.9rem}
+#xr-layout{display:flex;gap:1rem}
+#xr-bars{flex:1;min-width:0}
+#xr-detail{flex:0 0 300px;background:#fff;border:1px solid var(--bg4);border-radius:3px;padding:.9rem;box-shadow:0 1px 3px var(--shadow)}
+#xr-detail h4{font-size:.8rem;color:var(--accent);margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.04em}
+#xr-entry-list{display:flex;flex-direction:column;gap:.4rem;max-height:520px;overflow-y:auto;margin-top:.6rem}
+.xr-mini-card{background:var(--bg2);border:1px solid var(--bg4);border-radius:2px;padding:.45rem .6rem;cursor:pointer;transition:border-color .12s}
+.xr-mini-card:hover{border-color:var(--accent2)}
+.xr-mini-name{font-size:.79rem;color:var(--ink);font-weight:bold}
+.xr-mini-meta{font-size:.68rem;color:var(--ink3);margin-top:.15rem;display:flex;gap:.4rem;flex-wrap:wrap}
+
+/* Search */
+#search-bar-row{display:flex;gap:.5rem;margin-bottom:.7rem;align-items:center}
+#search-input{flex:1;max-width:560px;background:#fff;border:1.5px solid var(--bg4);border-bottom:2.5px solid var(--accent);color:var(--ink);padding:.5rem .8rem;font-size:1rem;font-family:Georgia,serif;border-radius:2px;outline:none;transition:border-color .15s}
+#search-input:focus{border-color:var(--accent2)}
+.search-opts{display:flex;gap:.7rem;flex-wrap:wrap;margin-bottom:.6rem}
+.search-opt{font-size:.76rem;color:var(--ink2);display:flex;align-items:center;gap:.25rem;cursor:pointer;user-select:none}
+.search-opt input{accent-color:var(--accent)}
+#search-count{font-size:.8rem;color:var(--ink3);margin-bottom:.5rem}
+.result-card{background:#fff;border:1px solid var(--bg4);border-radius:3px;padding:.75rem .9rem;margin-bottom:.45rem;box-shadow:0 1px 2px var(--shadow);cursor:pointer;transition:border-color .12s}
+.result-card:hover{border-color:var(--accent2)}
+.result-name{font-size:.88rem;color:var(--ink);font-weight:bold;margin-bottom:.2rem}
+.result-field{font-size:.78rem;color:var(--ink2);margin-top:.18rem}
+.result-field .fl{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-right:.3rem}
+.hl{background:#fde68a;color:var(--ink);border-radius:2px;padding:0 1px}
+
+/* Modal */
+#modal-overlay{position:fixed;inset:0;background:rgba(44,36,24,.55);z-index:2000;display:none;align-items:center;justify-content:center;padding:1rem}
+#modal-overlay.open{display:flex}
+#modal-box{background:var(--bg);border:2px solid var(--accent2);border-radius:4px;max-width:780px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(44,36,24,.35);position:relative}
+#modal-header{background:var(--accent);color:#f5ede0;padding:.7rem 1rem;display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;position:sticky;top:0;z-index:1}
+#modal-title{font-size:.95rem;font-weight:bold;line-height:1.35}
+#modal-close{background:none;border:none;color:#f5ede0;font-size:1.3rem;cursor:pointer;padding:0 .2rem;line-height:1;flex-shrink:0;opacity:.8}
+#modal-close:hover{opacity:1}
+#modal-body{padding:1rem 1.1rem}
+.modal-section{margin-bottom:.9rem}
+.modal-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:.2rem}
+.modal-value{font-size:.85rem;color:var(--ink2);line-height:1.55}
+.modal-desc{font-size:.82rem;color:var(--ink2);line-height:1.6;border-top:1px solid var(--bg4);padding-top:.7rem;margin-top:.5rem;white-space:pre-wrap}
+.modal-chips{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+.modal-archive-link,.modal-co-link{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--teal);text-decoration:none;border:1px solid var(--teal-lt);padding:.2rem .6rem;border-radius:2px;margin:.3rem .4rem .3rem 0;background:#e4f4f2;transition:background .12s}
+.modal-archive-link:hover,.modal-co-link:hover{background:#c8ebe8}
+.modal-divider{border:none;border-top:1px solid var(--bg4);margin:.7rem 0}
+.co-pair{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.co-pair-col{background:#fff;border:1px solid var(--bg4);border-radius:3px;padding:.6rem .7rem}
+.co-pair-col h5{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:.35rem}
+.co-pair-col .cv{font-size:.78rem;color:var(--ink2);line-height:1.5}
+
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent2)}
+
+@media(max-width:680px){
+  #app{height:100dvh}
+  #topbar{padding:.4rem .75rem;gap:.6rem;flex-wrap:nowrap}
+  #topbar .brand{font-size:.7rem;letter-spacing:.03em;border-right:none;padding-right:0}
+  #stats-toggle{display:flex;align-items:center;justify-content:center;margin-left:auto;background:transparent;border:1px solid #4a3c28;color:var(--accent3);font-size:.9rem;width:28px;height:28px;border-radius:3px;cursor:pointer;flex-shrink:0}
+  .stats-row{display:none;position:absolute;top:100%;left:0;right:0;background:var(--topbar);padding:.5rem .75rem .6rem;border-bottom:2px solid var(--accent2);gap:.6rem 1rem;flex-wrap:wrap;z-index:100}
+  .stats-row.open{display:flex}
+  .nav-tab{padding:.45rem .55rem;font-size:.6rem;letter-spacing:0}
+  .panel{padding:.75rem}
+  .overview-grid{grid-template-columns:1fr}
+  .kpi{min-width:calc(50% - .4rem)}
+  .kpi-val{font-size:1.25rem}
+  .bar-label{flex:0 0 90px;font-size:.72rem}
+  #xr-layout{flex-direction:column}
+  #xr-detail{flex:unset}
+  .co-pair{grid-template-columns:1fr}
+  .gallery-grid{grid-template-columns:1fr}
+  #modal-overlay{padding:.4rem}
+  #modal-box{max-height:96vh;border-radius:3px}
+}
+</style>
+</head>
+<body>
+
+<div id="loader-screen">
+  <div class="loader-ornament">☼ ⚙ ☼</div>
+  <div class="loader-title">Heliotypes of 1876<br>Cross-Referenced with the Special Loan Collection Catalogue</div>
+  <div class="loader-sub">South Kensington Museum · Photographic Record vs. Printed Catalogue</div>
+  <div id="load-progress">Fetching data…</div>
+  <div id="load-error"></div>
+</div>
+
+<div id="app">
+  <div id="topbar">
+    <div class="brand">Heliotypes × 1876 Catalogue</div>
+    <button id="stats-toggle" onclick="document.getElementById('stats-row').classList.toggle('open')" aria-label="Show stats">⊞</button>
+    <div class="stats-row" id="stats-row">
+      <div class="stat-pill"><strong id="s-total">—</strong> heliotypes</div>
+      <div class="stat-pill"><strong id="s-full">—</strong> matched</div>
+      <div class="stat-pill"><strong id="s-partial">—</strong> catalogue no. only</div>
+      <div class="stat-pill"><strong id="s-none">—</strong> unidentified</div>
+      <div class="stat-pill"><strong id="s-sections">—</strong> sections</div>
+      <div class="stat-pill"><strong id="s-rooms">—</strong> rooms</div>
+    </div>
+  </div>
+  <nav id="nav">
+    <button class="nav-tab active" data-tab="overview"><span class="tab-icon">◈</span><span>Overview</span></button>
+    <button class="nav-tab" data-tab="gallery"><span class="tab-icon">🖼</span><span>Gallery</span></button>
+    <button class="nav-tab" data-tab="crossref"><span class="tab-icon">🏛</span><span>Sections &amp; Rooms</span></button>
+    <button class="nav-tab" data-tab="search"><span class="tab-icon">⌕</span><span>Search</span></button>
+  </nav>
+  <div id="content">
+
+    <div class="panel active" id="panel-overview">
+      <div class="panel-title">Cross-Reference at a Glance</div>
+      <p class="panel-sub">Comparing photographic heliotype records on the Science Museum Group's Collections Online catalogue against their corresponding entries in the printed 1876 Special Loan Collection catalogue.</p>
+      <div class="kpi-row" id="kpi-row"></div>
+      <div class="overview-grid">
+        <div class="chart-card"><h3>Match status</h3><div id="chart-status"></div></div>
+        <div class="chart-card" style="grid-column:span 2">
+          <h3>Catalogue page coverage of matched heliotypes</h3>
+          <div id="page-strip-wrap">
+            <div id="page-strip-track"></div>
+          </div>
+          <div id="page-strip-labels"></div>
+        </div>
+        <div class="chart-card"><h3>Entries by section (matched only)</h3><div id="chart-section"></div></div>
+        <div class="chart-card"><h3>Entries by room</h3><div id="chart-room"></div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-gallery">
+      <div class="panel-title">Photograph Gallery</div>
+      <p class="panel-sub">Each heliotype photograph exists as two separate Collections Online records (two accession copies). Click a card for the full comparison with the 1876 catalogue.</p>
+      <div id="gallery-controls">
+        <input id="gallery-search" placeholder="Search by object name or description…" oninput="onGallerySearch()" autocomplete="off" spellcheck="false">
+        <div class="status-filter" id="status-filter">
+          <button class="sf-btn active" data-status="" onclick="setStatusFilter('',this)">All</button>
+          <button class="sf-btn" data-status="full" onclick="setStatusFilter('full',this)">Matched</button>
+          <button class="sf-btn" data-status="partial" onclick="setStatusFilter('partial',this)">Catalogue no. only</button>
+          <button class="sf-btn" data-status="none" onclick="setStatusFilter('none',this)">Unidentified</button>
+        </div>
+      </div>
+      <div id="gallery-count"></div>
+      <div class="gallery-grid" id="gallery-grid"></div>
+      <div class="pagination" id="gallery-pagination"></div>
+    </div>
+
+    <div class="panel" id="panel-crossref">
+      <div class="panel-title">By Section &amp; Room</div>
+      <p class="panel-sub">Only heliotypes fully matched to the catalogue carry a section; nearly all carry a gallery room letter. Search, then click a bar to see its entries.</p>
+      <div class="xr-tabs">
+        <button class="xr-tab active" id="xr-tab-section" onclick="switchXr(this,'section')">By Section</button>
+        <button class="xr-tab" id="xr-tab-room" onclick="switchXr(this,'room')">By Room</button>
+      </div>
+      <input id="xr-search" placeholder="Search sections or rooms…" oninput="onXrSearch()" autocomplete="off" spellcheck="false">
+      <div id="xr-layout">
+        <div id="xr-bars"></div>
+        <div id="xr-detail"><h4>← Click a bar</h4><div id="xr-entry-list"></div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-search">
+      <div class="panel-title">Full-Text Search</div>
+      <div id="search-bar-row">
+        <input id="search-input" placeholder="Search across all records…" oninput="scheduleSearch()" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="search-opts">
+        <label class="search-opt"><input type="checkbox" id="f-object" checked> Object name</label>
+        <label class="search-opt"><input type="checkbox" id="f-catdesc" checked> 1876 catalogue description</label>
+        <label class="search-opt"><input type="checkbox" id="f-desc1" checked> CO description (copy A)</label>
+        <label class="search-opt"><input type="checkbox" id="f-desc2" checked> CO description (copy B)</label>
+        <label class="search-opt"><input type="checkbox" id="f-room"> Room</label>
+        <label class="search-opt"><input type="checkbox" id="f-section"> Section / subsection</label>
+        <label class="search-opt"><input type="checkbox" id="f-catno"> Catalogue number</label>
+      </div>
+      <div id="search-count"></div>
+      <div id="search-results"></div>
+      <div class="pagination" id="search-pagination"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal-box">
+    <div id="modal-header">
+      <div id="modal-title">Entry</div>
+      <button id="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// DATA & STATE
+// ════════════════════════════════════════════════════════════
+let DATA=[];
+const PAGE=24;
+const state={
+  tab:'overview',
+  gallery:{ query:'', status:'', page:0 },
+  xr:{ mode:'section', query:'', selected:null },
+  search:{ query:'', page:0 }
+};
+
+const DATA_URL = 'data/heliotypes_1876.xlsx';
+
+// ════════════════════════════════════════════════════════════
+// ROMAN NUMERAL / SECTION SORT (matches 1876 catalogue numbering)
+// ════════════════════════════════════════════════════════════
+function romanToInt(s){
+  const vals={I:1,V:5,X:10,L:50,C:100,D:500,M:1000};
+  let result=0; const up=s.toUpperCase();
+  for(let i=0;i<up.length;i++){
+    const cur=vals[up[i]], nxt=vals[up[i+1]];
+    if(!cur) break;
+    if(nxt && cur<nxt) result-=cur; else result+=cur;
+  }
+  return result;
+}
+function secSortKey(s){
+  if(!s) return 99999;
+  let m=s.match(/SEC\.?\s*(\d+)/i);
+  if(m) return parseInt(m[1],10);
+  m=s.match(/^([IVXLCDM]+)[.\-\u2014\s]/i);
+  if(m){const n=romanToInt(m[1]); if(n>0) return n;}
+  return 99999;
+}
+function secShort(s){return (s||'').replace(/^SEC\.\s*\d+[.\u2014\-]+/,'').trim()}
+
+// ════════════════════════════════════════════════════════════
+// LOAD & PARSE
+// ════════════════════════════════════════════════════════════
+async function autoLoadData(){
+  const prog=document.getElementById('load-progress');
+  const err=document.getElementById('load-error');
+  prog.textContent='Fetching cross-reference data…';
+  try{
+    const res=await fetch(DATA_URL);
+    if(!res.ok) throw new Error(`HTTP ${res.status} — could not fetch ${DATA_URL}`);
+    prog.textContent='Parsing workbook…';
+    const buf=await res.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const sheetName=wb.SheetNames.find(n=>/heliotype/i.test(n))||wb.SheetNames[0];
+    const ws=wb.Sheets[sheetName];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    prog.textContent='Processing records…';
+    setTimeout(()=>processData(rows),10);
+  }catch(ex){
+    err.style.display='block';
+    err.textContent='⚠ '+ex.message+'. Make sure the spreadsheet is at data/heliotypes_1876.xlsx in the repository.';
+    prog.textContent='';
+  }
+}
+document.addEventListener('DOMContentLoaded', autoLoadData);
+
+function sv(v){return v==null?'':String(v).trim()}
+function nv(v){const x=Number(v);return isNaN(x)||v===''?0:Math.floor(x)}
+
+function processData(rows){
+  const body=rows.slice(1); // skip header row
+  DATA=body.filter(r=>r&&r.length&&r.some(c=>sv(c)!=='')).map((r,i)=>{
+    const sme=nv(r[0]);
+    const objId1=sv(r[1]), coNum1=sv(r[2]), url1=sv(r[3]), desc1=sv(r[4]);
+    const objId2=sv(r[5]), coNum2=sv(r[6]), url2=sv(r[7]), desc2=sv(r[8]);
+    const object=sv(r[9]);
+    const catNo=sv(r[10]);
+    const page=nv(r[11]);
+    const catDesc=sv(r[12]);
+    const roomRaw=sv(r[13]);
+    const rooms=roomRaw.split(/[;,]/).map(x=>x.trim()).filter(Boolean);
+    const section=sv(r[14]);
+    const sub1=sv(r[15]), sub2=sv(r[16]), sub3=sv(r[17]), sub4=sv(r[18]);
+    const subs=[sub1,sub2,sub3,sub4].filter(Boolean);
+    let status='none';
+    if(page) status='full'; else if(catNo) status='partial';
+    const displayName=object||(desc1?trunc(desc1,50):'')||(desc2?trunc(desc2,50):'')||'(untitled)';
+    return{_i:i,sme,objId1,coNum1,url1,desc1,objId2,coNum2,url2,desc2,object,displayName,catNo,page,catDesc,roomRaw,rooms,section,subs,status};
+  });
+  setTimeout(boot,20);
+}
+
+function boot(){
+  document.getElementById('loader-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  updateStatBar();
+  renderOverview();
+  renderGallery();
+  renderXr();
+  doSearch();
+}
+
+// ════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════
+function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function trunc(s,n){if(!s)return'';return s.length>n?s.slice(0,n)+'\u2026':s}
+function commas(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',')}
+function hlText(text,q){
+  if(!text||!q)return esc(text);
+  const re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+  return esc(text).replace(re,'<span class="hl">$1</span>');
+}
+function archiveUrl(page){
+  if(!page) return null;
+  return `https://archive.org/details/catalogueofspeci00soutrich/page/${page}/mode/1up`;
+}
+function pageChip(r){
+  const url=archiveUrl(r.page);
+  if(url) return `<a class="chip page-link" href="${esc(url)}" target="_blank" title="Open in Internet Archive (catalogue p.${r.page})" onclick="event.stopPropagation()">📖 p.${r.page}</a>`;
+  return '';
+}
+function statusLabel(s){return s==='full'?'Matched':s==='partial'?'Catalogue no. only':'Unidentified'}
+function barChart(data,maxV,cls,clickable){
+  if(!data.length)return'<div style="font-size:.78rem;color:var(--ink3)">No data</div>';
+  const mx=maxV||Math.max(...data.map(d=>d.v));
+  return data.map(d=>`<div class="bar-row${clickable?' clickable':''}"${clickable?` onclick="${clickable}('${esc(d.key!=null?d.key:d.l)}')"`:''}>
+    <div class="bar-label" title="${esc(d.l)}">${esc(trunc(d.l,26))}</div>
+    <div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.max(2,Math.round(d.v/mx*100))}%"></div></div>
+    <div class="bar-val">${commas(d.v)}</div></div>`).join('');
+}
+function renderPagination(id,cur,total,cb){
+  const el=document.getElementById(id);
+  if(total<=1){el.innerHTML='';return}
+  let h=`<span class="page-info">Page ${cur+1}/${total}</span>`;
+  if(cur>0)h+=`<button class="page-btn" onclick="(${cb})(${cur-1})">‹</button>`;
+  let s=Math.max(0,cur-3),e=Math.min(total-1,cur+3);
+  if(s>0)h+=`<button class="page-btn" onclick="(${cb})(0)">1</button>${s>1?'<span style="color:var(--ink3)">…</span>':''}`;
+  for(let i=s;i<=e;i++)h+=`<button class="page-btn${i===cur?' active':''}" onclick="(${cb})(${i})">${i+1}</button>`;
+  if(e<total-1)h+=`${e<total-2?'<span style="color:var(--ink3)">…</span>':''}<button class="page-btn" onclick="(${cb})(${total-1})">${total}</button>`;
+  if(cur<total-1)h+=`<button class="page-btn" onclick="(${cb})(${cur+1})">›</button>`;
+  el.innerHTML=h;
+}
+
+// ════════════════════════════════════════════════════════════
+// STAT BAR
+// ════════════════════════════════════════════════════════════
+function updateStatBar(){
+  document.getElementById('s-total').textContent=commas(DATA.length);
+  document.getElementById('s-full').textContent=commas(DATA.filter(r=>r.status==='full').length);
+  document.getElementById('s-partial').textContent=commas(DATA.filter(r=>r.status==='partial').length);
+  document.getElementById('s-none').textContent=commas(DATA.filter(r=>r.status==='none').length);
+  document.getElementById('s-sections').textContent=new Set(DATA.map(r=>r.section).filter(Boolean)).size;
+  document.getElementById('s-rooms').textContent=new Set(DATA.flatMap(r=>r.rooms)).size;
+}
+
+// ════════════════════════════════════════════════════════════
+// OVERVIEW
+// ════════════════════════════════════════════════════════════
+function renderOverview(){
+  const full=DATA.filter(r=>r.status==='full').length;
+  const partial=DATA.filter(r=>r.status==='partial').length;
+  const none=DATA.filter(r=>r.status==='none').length;
+  document.getElementById('kpi-row').innerHTML=[
+    ['Total heliotypes',commas(DATA.length),''],
+    ['Matched to catalogue',commas(full),'full'],
+    ['Catalogue no. only',commas(partial),'partial'],
+    ['Unidentified',commas(none),'none'],
+    ['Sections represented',new Set(DATA.map(r=>r.section).filter(Boolean)).size,''],
+    ['Rooms represented',new Set(DATA.flatMap(r=>r.rooms)).size,''],
+  ].map(([l,v,c])=>`<div class="kpi ${c}"><div class="kpi-val">${v}</div><div class="kpi-lbl">${l}</div></div>`).join('');
+
+  document.getElementById('chart-status').innerHTML=[
+    {l:'Matched (page & section)',v:full,cls:'full'},
+    {l:'Catalogue no. only',v:partial,cls:'partial'},
+    {l:'Unidentified',v:none,cls:'none'}
+  ].map(d=>`<div class="bar-row">
+      <div class="bar-label">${esc(d.l)}</div>
+      <div class="bar-track"><div class="bar-fill ${d.cls}" style="width:${Math.max(2,Math.round(d.v/DATA.length*100))}%"></div></div>
+      <div class="bar-val">${commas(d.v)}</div>
+    </div>`).join('');
+
+  const secCounts={};
+  DATA.forEach(r=>{if(r.section)secCounts[r.section]=(secCounts[r.section]||0)+1});
+  const secData=Object.entries(secCounts).sort((a,b)=>secSortKey(a[0])-secSortKey(b[0])).map(([s,c])=>({l:secShort(s)||s,v:c}));
+  document.getElementById('chart-section').innerHTML=barChart(secData,0,'');
+
+  const roomCounts={};
+  DATA.forEach(r=>r.rooms.forEach(rm=>{roomCounts[rm]=(roomCounts[rm]||0)+1}));
+  const roomData=Object.entries(roomCounts).sort((a,b)=>b[1]-a[1]).map(([rm,c])=>({l:'Room '+rm,v:c}));
+  document.getElementById('chart-room').innerHTML=barChart(roomData,0,'room');
+
+  renderPageStrip();
+}
+
+function renderPageStrip(){
+  const wrap=document.getElementById('page-strip-wrap');
+  const labelsEl=document.getElementById('page-strip-labels');
+  const matched=DATA.filter(r=>r.page>0);
+  if(!matched.length){wrap.innerHTML='<div style="font-size:.78rem;color:var(--ink3);padding:.6rem 0">No matched pages to display.</div>';labelsEl.innerHTML='';return}
+  const pages=matched.map(r=>r.page);
+  const minP=Math.min(...pages), maxP=Math.max(...pages);
+  const span=Math.max(1,maxP-minP);
+  wrap.innerHTML='<div id="page-strip-track"></div>'+matched.map(r=>{
+    const pct=((r.page-minP)/span*100).toFixed(2);
+    return `<div class="page-tick" style="left:${pct}%" title="${esc(r.displayName)} — p.${r.page}" onclick="openModal(${r._i})"></div>`;
+  }).join('');
+  labelsEl.innerHTML=`<span>p.${minP}</span><span>p.${maxP}</span>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// GALLERY
+// ════════════════════════════════════════════════════════════
+function setStatusFilter(status,btn){
+  state.gallery.status=status;
+  state.gallery.page=0;
+  document.querySelectorAll('.sf-btn').forEach(b=>b.classList.remove('active','full','partial','none'));
+  btn.classList.add('active');
+  if(status)btn.classList.add(status);
+  renderGallery();
+}
+
+let galleryTimer=null;
+function onGallerySearch(){
+  clearTimeout(galleryTimer);
+  galleryTimer=setTimeout(()=>{
+    state.gallery.query=document.getElementById('gallery-search').value.trim();
+    state.gallery.page=0;
+    renderGallery();
+  },180);
+}
+
+function renderGallery(){
+  const{query,status,page}=state.gallery;
+  const ql=query.toLowerCase();
+  let rows=DATA;
+  if(status)rows=rows.filter(r=>r.status===status);
+  if(query)rows=rows.filter(r=>[r.displayName,r.desc1,r.desc2,r.catDesc,r.catNo].some(f=>f&&f.toString().toLowerCase().includes(ql)));
+
+  document.getElementById('gallery-count').textContent=`${commas(rows.length)} of ${commas(DATA.length)} heliotypes shown`;
+  const total=Math.ceil(rows.length/PAGE)||1;
+  const slice=rows.slice(page*PAGE,(page+1)*PAGE);
+  document.getElementById('gallery-grid').innerHTML=slice.map(r=>helioCard(r,query)).join('')||
+    '<div style="color:var(--ink3);font-size:.85rem;padding:1rem">No heliotypes match your search.</div>';
+  renderPagination('gallery-pagination',page,total,p=>{state.gallery.page=p;renderGallery();document.getElementById('panel-gallery').scrollTop=0});
+}
+
+function helioCard(r,q){
+  const chips=[];
+  if(r.catNo)chips.push(`<span class="chip catno">No. ${esc(r.catNo)}</span>`);
+  const pc=pageChip(r);if(pc)chips.push(pc);
+  r.rooms.forEach(rm=>chips.push(`<span class="chip room">Room ${esc(rm)}</span>`));
+  if(r.section)chips.push(`<span class="chip sec-chip">${esc(secShort(r.section)||r.section)}</span>`);
+  const nameH=q?hlText(r.displayName,q):esc(r.displayName);
+  const snippet=r.desc1||r.desc2||'';
+  const snipH=q?hlText(trunc(snippet,110),q):esc(trunc(snippet,110));
+  return `<div class="helio-card" onclick="openModal(${r._i})">
+    <div class="helio-top">
+      <span class="helio-sme">SME #${esc(r.sme||'—')}</span>
+      <span class="match-badge ${r.status}">${statusLabel(r.status)}</span>
+    </div>
+    <div class="helio-name">${nameH}</div>
+    <div class="helio-meta">${chips.join('')}</div>
+    ${snippet?`<div class="helio-desc-snip">${snipH}</div>`:''}
+    <div class="helio-links">
+      ${r.url1?`<a class="chip co-link" href="${esc(r.url1)}" target="_blank" onclick="event.stopPropagation()">📷 Copy A · ${esc(r.coNum1)}</a>`:''}
+      ${r.url2?`<a class="chip co-link" href="${esc(r.url2)}" target="_blank" onclick="event.stopPropagation()">📷 Copy B · ${esc(r.coNum2)}</a>`:''}
+    </div>
+  </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// SECTIONS & ROOMS (cross-reference)
+// ════════════════════════════════════════════════════════════
+function switchXr(btn,mode){
+  document.querySelectorAll('.xr-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  state.xr.mode=mode;
+  state.xr.selected=null;
+  document.getElementById('xr-search').value='';
+  state.xr.query='';
+  renderXr();
+}
+
+let xrSearchTimer=null;
+function onXrSearch(){
+  clearTimeout(xrSearchTimer);
+  xrSearchTimer=setTimeout(()=>{
+    state.xr.query=document.getElementById('xr-search').value;
+    renderXr();
+  },150);
+}
+
+function renderXr(){
+  const mode=state.xr.mode;
+  const q=(state.xr.query||'').toLowerCase().trim();
+  let all;
+  if(mode==='section'){
+    const counts={};
+    DATA.forEach(r=>{if(r.section)counts[r.section]=(counts[r.section]||0)+1});
+    all=Object.entries(counts).sort((a,b)=>secSortKey(a[0])-secSortKey(b[0])).map(([sec,c])=>({key:sec,label:secShort(sec)||sec,v:c}));
+  }else{
+    const counts={};
+    DATA.forEach(r=>r.rooms.forEach(rm=>{counts[rm]=(counts[rm]||0)+1}));
+    all=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([rm,c])=>({key:rm,label:'Room '+rm,v:c}));
+  }
+  const filtered=q?all.filter(d=>d.label.toLowerCase().includes(q)):all;
+  const mx=all[0]?.v||1;
+  document.getElementById('xr-bars').innerHTML=filtered.length?filtered.map(d=>
+    `<div class="bar-row clickable" onclick="selectXr('${esc(d.key)}')">
+      <div class="bar-label" title="${esc(d.label)}">${q?hlText(trunc(d.label,26),state.xr.query):esc(trunc(d.label,26))}</div>
+      <div class="bar-track"><div class="bar-fill ${mode==='room'?'room':''}" style="width:${Math.max(2,Math.round(d.v/mx*100))}%"></div></div>
+      <div class="bar-val">${d.v}</div>
+    </div>`
+  ).join(''):`<div style="font-size:.8rem;color:var(--ink3);padding:.6rem 0">No ${mode==='section'?'sections':'rooms'} match your search.</div>`;
+
+  if(state.xr.selected && q && !filtered.some(d=>d.key===state.xr.selected)){
+    document.getElementById('xr-detail').querySelector('h4').textContent='← Click a bar';
+    document.getElementById('xr-entry-list').innerHTML='';
+  }
+}
+
+function selectXr(key){
+  state.xr.selected=key;
+  const mode=state.xr.mode;
+  const rows= mode==='section' ? DATA.filter(r=>r.section===key) : DATA.filter(r=>r.rooms.includes(key));
+  const label= mode==='section' ? (secShort(key)||key) : ('Room '+key);
+  document.getElementById('xr-detail').querySelector('h4').textContent=`${label} — ${commas(rows.length)} entries`;
+  document.getElementById('xr-entry-list').innerHTML=rows.map(r=>{
+    const pc=pageChip(r);
+    return `<div class="xr-mini-card" onclick="openModal(${r._i})">
+      <div class="xr-mini-name">${esc(r.displayName)}</div>
+      <div class="xr-mini-meta">
+        <span class="match-badge ${r.status}" style="padding:.05rem .4rem">${statusLabel(r.status)}</span>
+        ${r.catNo?`<span>No. ${esc(r.catNo)}</span>`:''}
+        ${pc}
+        ${mode==='section'?r.rooms.map(rm=>`<span>Room ${esc(rm)}</span>`).join(''):(r.section?`<span>${esc(secShort(r.section)||r.section)}</span>`:'')}
+      </div>
+    </div>`;
+  }).join('')||'<div style="color:var(--ink3);font-size:.8rem">No entries found.</div>';
+}
+
+// ════════════════════════════════════════════════════════════
+// FULL-TEXT SEARCH
+// ════════════════════════════════════════════════════════════
+let searchTimer=null;
+function scheduleSearch(){
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{
+    state.search.query=document.getElementById('search-input').value;
+    state.search.page=0;
+    doSearch();
+  },220);
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.search-opt input').forEach(cb=>cb.addEventListener('change',()=>{state.search.page=0;doSearch()}));
+});
+
+function doSearch(){
+  const q=state.search.query.trim();
+  const countEl=document.getElementById('search-count');
+  const resEl=document.getElementById('search-results');
+  if(!q){countEl.textContent='';resEl.innerHTML='<div style="color:var(--ink3);font-size:.88rem">Enter a search term above.</div>';document.getElementById('search-pagination').innerHTML='';return}
+  const useObject=document.getElementById('f-object')?.checked;
+  const useCatdesc=document.getElementById('f-catdesc')?.checked;
+  const useDesc1=document.getElementById('f-desc1')?.checked;
+  const useDesc2=document.getElementById('f-desc2')?.checked;
+  const useRoom=document.getElementById('f-room')?.checked;
+  const useSection=document.getElementById('f-section')?.checked;
+  const useCatno=document.getElementById('f-catno')?.checked;
+  const ql=q.toLowerCase();
+  const results=DATA.filter(r=>{
+    if(useObject&&r.displayName&&r.displayName.toLowerCase().includes(ql))return true;
+    if(useCatdesc&&r.catDesc&&r.catDesc.toLowerCase().includes(ql))return true;
+    if(useDesc1&&r.desc1&&r.desc1.toLowerCase().includes(ql))return true;
+    if(useDesc2&&r.desc2&&r.desc2.toLowerCase().includes(ql))return true;
+    if(useRoom&&r.roomRaw&&r.roomRaw.toLowerCase().includes(ql))return true;
+    if(useSection&&([r.section,...r.subs].some(f=>f&&f.toLowerCase().includes(ql))))return true;
+    if(useCatno&&r.catNo&&r.catNo.toString().toLowerCase().includes(ql))return true;
+    return false;
+  });
+  const pg=state.search.page;
+  const total=Math.ceil(results.length/PAGE)||1;
+  const slice=results.slice(pg*PAGE,(pg+1)*PAGE);
+  countEl.textContent=`${commas(results.length)} results for "${q}"`;
+  resEl.innerHTML=slice.map(r=>{
+    const chips=[];
+    if(r.catNo)chips.push(`<span class="chip catno">No. ${esc(r.catNo)}</span>`);
+    const pc=pageChip(r);if(pc)chips.push(pc);
+    r.rooms.forEach(rm=>chips.push(`<span class="chip room">Room ${esc(rm)}</span>`));
+    if(r.section)chips.push(`<span class="chip sec-chip">${esc(secShort(r.section)||r.section)}</span>`);
+    chips.push(`<span class="match-badge ${r.status}">${statusLabel(r.status)}</span>`);
+    return `<div class="result-card" onclick="openModal(${r._i})">
+      <div class="result-name">${hlText(r.displayName,q)}</div>
+      <div class="modal-chips" style="margin:.3rem 0">${chips.join('')}</div>
+      ${useCatdesc&&r.catDesc&&r.catDesc.toLowerCase().includes(ql)?`<div class="result-field"><span class="fl">1876 description</span>${hlText(trunc(r.catDesc,220),q)}</div>`:''}
+      ${useDesc1&&r.desc1&&r.desc1.toLowerCase().includes(ql)?`<div class="result-field"><span class="fl">CO description (copy A)</span>${hlText(r.desc1,q)}</div>`:''}
+      ${useDesc2&&r.desc2&&r.desc2.toLowerCase().includes(ql)?`<div class="result-field"><span class="fl">CO description (copy B)</span>${hlText(r.desc2,q)}</div>`:''}
+    </div>`;
+  }).join('')||'<div style="color:var(--ink3);font-size:.88rem">No matches.</div>';
+  renderPagination('search-pagination',pg,total,p=>{state.search.page=p;doSearch();document.getElementById('panel-search').scrollTop=0});
+}
+
+// ════════════════════════════════════════════════════════════
+// MODAL
+// ════════════════════════════════════════════════════════════
+function openModal(idx){
+  const r=DATA[idx];if(!r)return;
+  const url=archiveUrl(r.page);
+  const pathParts=[secShort(r.section)||r.section,...r.subs].filter(Boolean);
+  document.getElementById('modal-title').textContent=`SME #${r.sme||'—'} — ${r.displayName}`;
+  document.getElementById('modal-body').innerHTML=`
+    <div class="modal-section">
+      <div class="modal-label">Match status</div>
+      <div class="modal-value"><span class="match-badge ${r.status}">${statusLabel(r.status)}</span></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-label">1876 Catalogue Entry</div>
+      <div class="modal-value">
+        ${r.catNo?`Catalogue No. <strong>${esc(r.catNo)}</strong>`:'No catalogue number identified'}
+        ${r.page?` · Page ${r.page}`:''}
+        ${r.roomRaw?` · Room ${esc(r.roomRaw)}`:''}
+      </div>
+      ${pathParts.length?`<div class="modal-value" style="margin-top:.3rem;font-style:italic">${esc(pathParts.join(' › '))}</div>`:''}
+      ${url?`<a class="modal-archive-link" href="${esc(url)}" target="_blank">📖 Open catalogue page ${r.page} in Internet Archive</a>`:''}
+      ${r.catDesc?`<div class="modal-desc">${esc(r.catDesc)}</div>`:'<div style="font-size:.8rem;color:var(--ink3);margin-top:.5rem;font-style:italic">No 1876 catalogue description on record.</div>'}
+    </div>
+    <hr class="modal-divider">
+    <div class="modal-section">
+      <div class="modal-label">Photographic Record (Collections Online)</div>
+      <div class="co-pair">
+        <div class="co-pair-col">
+          <h5>Copy A — ${esc(r.objId1||'—')}</h5>
+          <div class="cv">${r.desc1?esc(r.desc1):'<em>No description recorded.</em>'}</div>
+          ${r.url1?`<a class="modal-co-link" href="${esc(r.url1)}" target="_blank">🔗 ${esc(r.coNum1)}</a>`:''}
+        </div>
+        <div class="co-pair-col">
+          <h5>Copy B — ${esc(r.objId2||'—')}</h5>
+          <div class="cv">${r.desc2?esc(r.desc2):'<em>No description recorded.</em>'}</div>
+          ${r.url2?`<a class="modal-co-link" href="${esc(r.url2)}" target="_blank">🔗 ${esc(r.coNum2)}</a>`:''}
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeModal(e){
+  if(e&&e.target!==document.getElementById('modal-overlay')&&e.target!==document.getElementById('modal-close'))return;
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal({target:document.getElementById('modal-overlay')})});
+
+// ════════════════════════════════════════════════════════════
+// NAV
+// ════════════════════════════════════════════════════════════
+document.addEventListener('click', e => {
+  const row = document.getElementById('stats-row');
+  const toggle = document.getElementById('stats-toggle');
+  if(row && toggle && !row.contains(e.target) && !toggle.contains(e.target)){
+    row.classList.remove('open');
+  }
+});
+document.querySelectorAll('.nav-tab').forEach(btn=>btn.addEventListener('click',()=>{
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+  state.tab=btn.dataset.tab;
+}));
+</script>
+</body>
+</html>
